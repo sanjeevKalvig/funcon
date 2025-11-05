@@ -5,19 +5,18 @@ export const appContext = createContext();
 
 function AppContextProvider({ children }) {
     const [textures, setTextures] = useState({
-        cushions: null,
         backCushions: null,
-        decorativeCushions: null,
+        seatCushions: null,
         armrest: null,
         backSofa: null,
-    })
+      });
 
     const [layout, setLayout] = useState('left')
-    const [hoveredGroup, setHoveredGroup] = useState(null);
     const [aaMode, setAaMode] = useState("None")
+    const [interactiveMeshes, setInteractiveMeshes] = useState([]);
 
     return (
-        <appContext.Provider value={{textures,setTextures,layout,setLayout,hoveredGroup,setHoveredGroup,aaMode,setAaMode}}>
+        <appContext.Provider value={{textures,setTextures,layout,setLayout,aaMode,setAaMode,interactiveMeshes, setInteractiveMeshes}}>
             {children}
         </appContext.Provider>
     )

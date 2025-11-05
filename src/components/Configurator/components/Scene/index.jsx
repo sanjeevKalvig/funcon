@@ -22,7 +22,7 @@ export default function Scene() {
       }}
       style={{ background: 'linear-gradient(to bottom, #dcdcdc, #f5f5f5)' }}
     >
-      <PerspectiveCamera makeDefault position={[2, 1.5, 3]} />
+      <PerspectiveCamera makeDefault position={[-2.0, 0.4, 4.0]} />
       <OrbitControls
         ref={controlsRef}
         enableDamping

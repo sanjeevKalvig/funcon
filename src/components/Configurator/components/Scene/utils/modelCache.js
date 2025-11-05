@@ -1,6 +1,6 @@
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 
-const modelLoader = new GLTFLoader()
+const modelLoader = new OBJLoader()
 const modelCache = {}
 
 export function preloadModel(path) {
@@ -10,9 +10,9 @@ export function preloadModel(path) {
     } else {
       modelLoader.load(
         path,
-        (gltf) => {
-          modelCache[path] = gltf
-          resolve(gltf)
+        (obj) => {
+          modelCache[path] = obj
+          resolve(obj)
         },
         undefined,
         (err) => reject(err)

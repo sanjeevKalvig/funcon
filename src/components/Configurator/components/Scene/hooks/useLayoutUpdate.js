@@ -1,89 +1,171 @@
-// We have 2 gsap animation to change the layout
-
-import { useContext, useEffect } from 'react'
-import { appContext } from '../../../contexts/appContext'
-import gsap from 'gsap'
+import { useContext, useEffect, useRef } from "react"
+import { appContext } from "../../../contexts/appContext"
+import gsap from "gsap"
 
 function useLayoutUpdate(sceneClone) {
     const { layout } = useContext(appContext)
+    const hasMounted = useRef(false)
 
-    // 1. Animate layout transition smoothly (with position change only)
     useEffect(() => {
         if (!sceneClone) return
 
-        const cushion4 = sceneClone.getObjectByName('cushion4')
-        const base3 = sceneClone.getObjectByName('sofa_base3')
-        if (!cushion4 || !base3) return
-
-        const leftPositions = {
-            cushion4: { z: -1.425 },
-            base3: { z: -0.925 },
+        // Skip the first render
+        if (!hasMounted.current) {
+            hasMounted.current = true
+            return
         }
 
-        const rightPositions = {
-            cushion4: { z: 0.5 },
-            base3: { z: 1 },
+        const sleeperSection = [
+            "mx:Plane008 polySurface25",
+            "pCube37",
+            "pCylinder7",
+            "pCylinder5",
+            "pCylinder8",
+            "pCylinder6",
+            "polySurface3 polySurface1 polySurface36",
+        ]
+
+        const consoleSection = [
+            "polySurface26 mx:Plane008 polySurface28",
+            "polySurface27 polySurface26 mx:Plane008",
+            "polySurface27 polySurface26 mx:Plane008 pasted__polySurface29",
+            "pasted__polySurface27 pasted__polySurface26 mx3:Plane008 group1",
+            "polySurface29",
+            "pCube34",
+            "pCylinder11",
+            "pCylinder12",
+            "pCylinder9",
+            "pCylinder10",
+            "polySurface3 polySurface1 polySurface31",
+            "pCube51",
+            "pCube49",
+            "pCube50",
+            "pCube52",
+            "pCube53",
+            "pCube54",
+            "pCube56",
+            "pCube55",
+            "pCube63",
+            "pCube66",
+        ]
+
+        // Helper: get valid meshes by name (support duplicates)
+        const getMeshes = (names) => {
+            const found = []
+            sceneClone.traverse((child) => {
+                if (child.isMesh && names.includes(child.name)) {
+                    found.push(child)
+                }
+            })
+            return found
         }
 
-        const target = layout === 'left' ? leftPositions : rightPositions
+        const sleeperMeshes = getMeshes(sleeperSection)
+        const consoleMeshes = getMeshes(consoleSection)
+        const hiddenMesh = sceneClone.getObjectByName("pCube4");
 
-        gsap.to(cushion4.position, {
-            z: target.cushion4.z,
-            duration: 1,
-            ease: 'power2.inOut',
-        })
 
-        gsap.to(base3.position, {
-            z: target.base3.z,
-            duration: 1,
-            ease: 'power2.inOut',
-        })
+        if (sleeperMeshes.length === 0 && consoleMeshes.length === 0) return
+
+        const offset = 187
+
+        // Create timelines
+        const tlSleeper = gsap.timeline()
+        const tlConsole = gsap.timeline()
+        // 🔹 Hide and show mesh during animation
+        if (hiddenMesh) {
+            tlSleeper.eventCallback("onStart", () => {
+                hiddenMesh.visible = false
+            })
+            tlSleeper.eventCallback("onComplete", () => {
+                hiddenMesh.visible = true
+            })
+        }
+
+        // Define animations based on layout
+        if (layout === "left") {
+            // SLEEPER: front → right → back (final)
+            tlSleeper
+                .to(sleeperMeshes.map((m) => m.position), {
+                    x: -offset,
+                    z: -100,
+                    duration: 0.4,
+                    ease: "power2.inOut",
+                })
+                .to(sleeperMeshes.map((m) => m.position), {
+                    x: 0,
+                    z: -100,
+                    duration: 0.5,
+                    ease: "power2.inOut",
+                })
+                .to(sleeperMeshes.map((m) => m.position), {
+                    x: 0,
+                    z: 0,
+                    duration: 0.6,
+                    ease: "power2.inOut",
+                })
+
+            // CONSOLE: back → left → front (final)
+            tlConsole
+                .to(consoleMeshes.map((m) => m.position), {
+                    x: offset,
+                    z: 100,
+                    duration: 0.4,
+                    ease: "power2.inOut",
+                })
+                .to(consoleMeshes.map((m) => m.position), {
+                    x: 0,
+                    z: 100,
+                    duration: 0.5,
+                    ease: "power2.inOut",
+                })
+                .to(consoleMeshes.map((m) => m.position), {
+                    x: 0,
+                    z: 0,
+                    duration: 0.6,
+                    ease: "power2.inOut",
+                })
+        } else if (layout === "right") {
+            // Reverse order when layout is right
+            tlSleeper
+                .to(sleeperMeshes.map((m) => m.position), {
+                    z: 100,
+                    duration: 0.4,
+                    ease: "power2.inOut",
+                })
+                .to(sleeperMeshes.map((m) => m.position), {
+                    x: -offset,
+                    z: 100,
+                    duration: 0.5,
+                    ease: "power2.inOut",
+                })
+                .to(sleeperMeshes.map((m) => m.position), {
+                    x: -offset,
+                    z: 0,
+                    duration: 0.6,
+                    ease: "power2.inOut",
+                })
+
+            tlConsole
+                .to(consoleMeshes.map((m) => m.position), {
+                    z: -100,
+                    duration: 0.4,
+                    ease: "power2.inOut",
+                })
+                .to(consoleMeshes.map((m) => m.position), {
+                    x: offset,
+                    z: -100,
+                    duration: 0.5,
+                    ease: "power2.inOut",
+                })
+                .to(consoleMeshes.map((m) => m.position), {
+                    x: offset,
+                    z: 0,
+                    duration: 0.6,
+                    ease: "power2.inOut",
+                })
+        }
     }, [layout, sceneClone])
-
-    // 2. Animate layout transition smoothly (with bounce & rotation)
-    // useEffect(() => {
-    //   if (!sceneClone) return
-
-    //   const cushion4 = sceneClone.getObjectByName('cushion4')
-    //   const base3 = sceneClone.getObjectByName('sofa_base3')
-    //   if (!cushion4 || !base3) return
-
-    //   const left = {
-    //     cushion4: { z: -1.425, rotationY: 0.03 },
-    //     base3: { z: -0.925, rotationY: 0.03 },
-    //   }
-
-    //   const right = {
-    //     cushion4: { z: 0.5, rotationY: -0.03 },
-    //     base3: { z: 1, rotationY: -0.03 },
-    //   }
-
-    //   const target = layout === 'left' ? left : right
-
-    //   // Animate both position + rotation with bounce effect
-    //   gsap.to(cushion4.position, {
-    //     z: target.cushion4.z,
-    //     duration: 1.2,
-    //     ease: 'elastic.out(1, 0.6)',
-    //   })
-    //   gsap.to(cushion4.rotation, {
-    //     y: target.cushion4.rotationY,
-    //     duration: 1.2,
-    //     ease: 'power2.inOut',
-    //   })
-
-    //   gsap.to(base3.position, {
-    //     z: target.base3.z,
-    //     duration: 1.2,
-    //     ease: 'elastic.out(1, 0.6)',
-    //   })
-    //   gsap.to(base3.rotation, {
-    //     y: target.base3.rotationY,
-    //     duration: 1.2,
-    //     ease: 'power2.inOut',
-    //   })
-    // }, [layout, sceneClone])
-
 }
 
 export default useLayoutUpdate

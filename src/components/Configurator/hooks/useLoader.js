@@ -13,7 +13,7 @@ export function useLoader() {
                 // Preload all assets
                 await Promise.all([
                     preloadTextures(),
-                    preloadModel('/models/sofa.glb'),
+                    preloadModel('/models/L_SHAPE_SOFA.obj'),
                 ])
 
                 // Trigger fade out

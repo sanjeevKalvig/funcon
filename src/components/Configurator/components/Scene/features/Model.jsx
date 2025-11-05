@@ -1,35 +1,28 @@
-import { useEffect, useMemo } from 'react'
-import React, { forwardRef } from "react"
-import { getModel } from '../utils/modelCache'
-import useLayoutUpdate from '../hooks/useLayoutUpdate'
-import useTextureUpdate from '../hooks/useTextureUpdate'
-import useMeshEmission from '../hooks/useMeshEmission'
+import { useMemo, forwardRef } from "react";
+import { getModel } from "../utils/modelCache";
+import useTextureUpdate from "../hooks/useTextureUpdate";
+import useLayoutUpdate from "../hooks/useLayoutUpdate";
+
+export const Model = forwardRef(({ controlsRef }, modelRef) => {
+  const cachedModel = getModel("/models/L_SHAPE_SOFA.obj");
+
+  // ✅ OBJLoader returns a Group directly — not { scene: ... }
+  const sceneClone = useMemo(() => {
+    if (!cachedModel) return null;
+    return cachedModel.clone(true);
+  }, [cachedModel]);
 
 
-export const Model = forwardRef(({ }, ref) => {
+  useLayoutUpdate(sceneClone);
+  useTextureUpdate(sceneClone);
 
-    const cachedModel = getModel('/models/sofa.glb')
 
-    const sceneClone = useMemo(() => {
-        if (!cachedModel?.scene) return null
-        return cachedModel.scene.clone(true)
-    }, [cachedModel])
-
-    // Clone materials once
-    useEffect(() => {
-        if (!sceneClone) return
-        sceneClone.traverse((child) => {
-            if (child.isMesh) {
-                child.material = child.material.clone()
-            }
-        })
-    }, [sceneClone])
-
-    useLayoutUpdate(sceneClone)
-    useTextureUpdate(sceneClone)
-    useMeshEmission(sceneClone)
-
-    return sceneClone ? (
-        <primitive ref={ref} object={sceneClone} scale={1.2} position={[0, -0.9, 0]} />
-    ) : null
-})
+  // ✅ Important: scale down OBJ models (they're usually in centimeters)
+  return sceneClone ? (
+    <primitive
+      ref={modelRef}
+      object={sceneClone}
+      scale={0.01} 
+    />
+  ) : null;
+});

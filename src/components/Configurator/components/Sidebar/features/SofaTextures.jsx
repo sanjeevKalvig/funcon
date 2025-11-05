@@ -5,19 +5,14 @@ import { appContext } from '../../../contexts/appContext';
 
 function SofaTextures() {
   const { openCategory, setOpenCategory } = useContext(sideBarContext);
-  const {  textures, setTextures,setHoveredGroup } = useContext(appContext);
+  const {  textures, setTextures } = useContext(appContext);
 
   const textureGroups = {
-    cushions: [
-      { name: 'Beige', path: '/textures/Fabric0.jpg' },
-      { name: 'Seize', path: '/textures/Fabric1.jpg' },
-      { name: 'df', path: '/textures/Fabric2.jpg' },
-    ],
     backCushions: [
       { name: 'Alfardo', path: '/textures/Fabric2.jpg' },
       { name: 'Mijo', path: '/textures/Fabric4.jpg' },
     ],
-    decorativeCushions: [
+    seatCushions: [
       { name: 'Chijo', path: '/textures/Fabric3.jpg' },
       { name: 'Beige', path: '/textures/Fabric0.jpg' },
     ],
@@ -25,7 +20,7 @@ function SofaTextures() {
       { name: 'Velvet Gray', path: '/textures/Fabric2.jpg' },
       { name: 'Velvet Blue', path: '/textures/Fabric4.jpg' },
     ],
-    backSofa: [
+    backFrame: [
       { name: 'Premium White', path: '/textures/Fabric1.jpg' },
       { name: 'Leather Green', path: '/textures/Fabric2.jpg' },
     ],
@@ -42,8 +37,6 @@ function SofaTextures() {
     <div key={key}>
       <h3
         className="text-lg font-medium mb-3 w-fit"
-        // onMouseEnter={() => setHoveredGroup(key)}
-        // onMouseLeave={() => setHoveredGroup(null)}
       >{label}</h3>
       <div className="grid grid-cols-3 gap-4 px-2">
         {textureGroups[key].map((tex) => (
@@ -83,11 +76,10 @@ function SofaTextures() {
         }`}
     >
       <div className="flex flex-col gap-6 mt-2 mb-2">
-        {renderSection('Cushions', 'cushions')}
         {renderSection('Back Cushions', 'backCushions')}
-        {renderSection('Decorative Cushions', 'decorativeCushions')}
+        {renderSection('Seat Cushions', 'seatCushions')}
         {renderSection('Armrest', 'armrest')}
-        {renderSection('Sofa Back', 'backSofa')}
+        {renderSection('Back Frame', 'backFrame')}
       </div>
     </div>
   </div>

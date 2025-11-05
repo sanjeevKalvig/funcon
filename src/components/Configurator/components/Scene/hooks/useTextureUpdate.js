@@ -67,27 +67,22 @@ function useTextureUpdate(sceneClone) {
     
             sceneClone.traverse((child) => {
                 if (!child.isMesh) return
-                const name = child.name.toLowerCase()
-    
-                // 🟩 Cushion Group
-                if (['cushion1', 'cushion2', 'cushion3', 'cushion4'].includes(name) && textures.cushions)
-                    applyTextureSmoothly(child, getTexture(textures.cushions));
-    
+                const name = child.name
                 // 🟨 Back Cushions
-                else if (['back_cushion1', 'back_cushion2', 'back_cushion3'].includes(name) && textures.backCushions)
+                if (['polySurface3 polySurface1 polySurface31', 'polySurface33 polySurface3 polySurface1', 'polySurface3 polySurface1 polySurface36'].includes(name) && textures.backCushions)
                     applyTextureSmoothly(child, getTexture(textures.backCushions));
     
                 // 🟧 Decorative Cushions
-                else if (['cushiondecor1', 'cushiondecor2'].includes(name) && textures.decorativeCushions)
-                    applyTextureSmoothly(child, getTexture(textures.decorativeCushions));
+                else if (['polySurface26 mx:Plane008 polySurface28', 'mx:Plane008 polySurface24','mx:Plane008 polySurface25','pasted__polySurface27 pasted__polySurface26 mx3:Plane008 group1'].includes(name) && textures.seatCushions)
+                    applyTextureSmoothly(child, getTexture(textures.seatCushions));
     
                 // 🟦 Armrests
-                else if (['left_armrest', 'right_armrest'].includes(name) && textures.armrest)
+                else if (['pCube2', 'pCube33'].includes(name) && textures.armrest)
                     applyTextureSmoothly(child, getTexture(textures.armrest));
     
                 // 🟥 Back Sofa
-                else if (['back_sofa'].includes(name) && textures.backSofa)
-                    applyTextureSmoothly(child, getTexture(textures.backSofa));
+                else if (['pCube4'].includes(name) && textures.backFrame)
+                    applyTextureSmoothly(child, getTexture(textures.backFrame));
     
             })
         }, [textures, sceneClone])
