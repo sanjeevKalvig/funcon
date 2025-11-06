@@ -22,12 +22,12 @@ export default function Scene() {
       }}
       style={{ background: 'linear-gradient(to bottom, #dcdcdc, #f5f5f5)' }}
     >
-      <PerspectiveCamera makeDefault position={[-2.0, 0.4, 4.0]} />
+      <PerspectiveCamera makeDefault position={[-190.0, 20.9, 380.0]} />
       <OrbitControls
         ref={controlsRef}
         enableDamping
-        // minDistance={1.5}
-        maxDistance={6}
+        // minDistance={100}
+        maxDistance={500}
         minPolarAngle={Math.PI / 4}
         maxPolarAngle={Math.PI / 2}
       />

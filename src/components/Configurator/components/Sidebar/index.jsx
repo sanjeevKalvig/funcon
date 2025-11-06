@@ -3,6 +3,7 @@ import SofaTextures from './features/SofaTextures';
 import SofaInteractions from './features/SofaInteractions';
 import SofaAntialiasing from './features/SofaAntialiasing';
 import SideBarContextProvider from './context/SideBarContext';
+import SofaMeasurements from './features/SofaMeasurements';
 
 export default function Sidebar() {
 
@@ -19,6 +20,8 @@ export default function Sidebar() {
 
         {/* Interaction Points Category */}
         <SofaInteractions />
+
+        <SofaMeasurements />
 
         {/* Antialiasing */}
         {/* <SofaAntialiasing /> */}
