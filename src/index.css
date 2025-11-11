@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+.loading-block {
+    pointer-events: none;
+    opacity: 0.95;
+  }
+
+button{
+    cursor: pointer;
+}
+  

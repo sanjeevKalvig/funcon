@@ -1,23 +1,22 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useState } from "react";
 
 export const appContext = createContext();
 
 
 function AppContextProvider({ children }) {
-    const [textures, setTextures] = useState({
-        backCushions: null,
-        seatCushions: null,
-        armrest: null,
-        backSofa: null,
-      });
-
+    const [material, setMaterial] = useState(1);
+    const swatches = [
+        '/textures/Fabric0.jpg',
+        '/textures/Fabric1.jpg',
+        '/textures/Fabric2.jpg',
+        '/textures/Fabric3.jpg',
+        '/textures/Fabric4.jpg',
+    ];
     const [layout, setLayout] = useState('left')
-    const [aaMode, setAaMode] = useState("None")
-    const [interactiveMeshes, setInteractiveMeshes] = useState([]);
     const [showMeasurements, setShowMeasurements] = useState(false);
 
     return (
-        <appContext.Provider value={{textures,setTextures,layout,setLayout,aaMode,setAaMode,interactiveMeshes, setInteractiveMeshes,showMeasurements, setShowMeasurements}}>
+        <appContext.Provider value={{ material, setMaterial, swatches, layout, setLayout, showMeasurements, setShowMeasurements }}>
             {children}
         </appContext.Provider>
     )

@@ -15,7 +15,7 @@ const texturePaths = [
 export function preloadTextures() {
   return Promise.all(
     texturePaths.map(
-      (path) =>
+      (path,index) =>
         new Promise((resolve, reject) => {
           if (textureCache[path]) {
             resolve(textureCache[path])
@@ -23,7 +23,7 @@ export function preloadTextures() {
             textureLoader.load(
               path,
               (tex) => {
-                textureCache[path] = tex
+                textureCache[index] = tex
                 resolve(tex)
               },
               undefined,

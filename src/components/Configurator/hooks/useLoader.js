@@ -4,8 +4,6 @@ import { preloadModel } from '../components/Scene/utils/modelCache'
 
 export function useLoader() {
     const [loading, setLoading] = useState(true)
-    const [fadeOut, setFadeOut] = useState(false)
-    const [showScene, setShowScene] = useState(false)
 
     useEffect(() => {
         async function loadAll() {
@@ -16,24 +14,20 @@ export function useLoader() {
                     preloadModel('/models/L_SHAPE_SOFA.obj'),
                 ])
 
-                // Trigger fade out
-                setFadeOut(true)
 
                 // Delay showing scene slightly (sync with fade)
                 setTimeout(() => {
-                    setShowScene(true)
                     setLoading(false)
                 }, 800)
             } catch (err) {
                 console.error('Preloading failed:', err)
                 setLoading(false)
-                setShowScene(true)
             }
         }
 
         loadAll()
     }, [])
 
-    return { loading,fadeOut,showScene };
+    return { loading };
 
 }
