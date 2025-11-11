@@ -1,15 +1,27 @@
-import React, { useRef } from "react"
-import * as THREE from 'three'
-import { Environment } from "@react-three/drei"
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, PerspectiveCamera, ContactShadows } from '@react-three/drei'
-import Lights from './features/Lights'
-import { Model } from './features/Model'
-import CameraMove_AntiAliasing from './features/CameraMove_AntiAliasing'
+import React, { useRef } from "react";
+import { useEffect, useContext } from "react";
+import * as THREE from "three";
+import { Environment } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  ContactShadows,
+} from "@react-three/drei";
+import Lights from "./features/Lights";
+import { Model } from "./features/Model";
+import CameraMove_AntiAliasing from "./features/CameraMove_AntiAliasing";
+import { appContext } from "../../contexts/appContext";
+import { preloadTextures } from "./utils/textureCache";
 
 export default function Scene() {
-  const modelRef = useRef()
-  const controlsRef = useRef()
+  const { swatches } = useContext(appContext);
+  const modelRef = useRef();
+  const controlsRef = useRef();
+
+  useEffect(() => {
+    preloadTextures(swatches).catch(console.error);
+  }, [swatches]);
   return (
     <Canvas
       shadows
@@ -34,8 +46,13 @@ export default function Scene() {
       {/* <Environment files="hdr/woodenRoom.hdr" />  */}
       <Lights />
       <Model ref={modelRef} />
-      <ContactShadows position={[0, -0.5, 0]} opacity={0.5} scale={10} blur={2.5} />
+      <ContactShadows
+        position={[0, -0.5, 0]}
+        opacity={0.5}
+        scale={10}
+        blur={2.5}
+      />
       <CameraMove_AntiAliasing modelRef={modelRef} controlsRef={controlsRef} />
     </Canvas>
-  )
+  );
 }
