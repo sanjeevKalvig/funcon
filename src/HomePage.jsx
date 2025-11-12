@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Palette,
   Sofa,
@@ -135,6 +136,7 @@ const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
 const HomePage = () => {
   const [legs, setLegs] = useState("taper");
   const [lighting, setLighting] = useState("studio");
+  const navigate = useNavigate();
 
   // 🔧 Pull EVERYTHING you use from context
   const {
@@ -394,6 +396,12 @@ const HomePage = () => {
             >
               <ShoppingCart className="h-4 w-4" />
               ADD TO CART
+            </button>
+            <button
+              onClick={() => navigate("/checkout")}
+              className="w-full mt-2 rounded-lg border border-blue-400/30 bg-blue-400/10 py-2 text-xs text-blue-200 hover:bg-blue-400/20"
+            >
+              Go to Checkout
             </button>
           </div>
 
