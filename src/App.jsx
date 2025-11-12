@@ -5,7 +5,7 @@ import Checkout from "./pages/Checkout"; // 👈 you’ll create this page soon
 
 export default function App() {
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
+    <div className="relative overflow-hidden">
       <AppContextProvider>
         <HashRouter>
           <Routes>

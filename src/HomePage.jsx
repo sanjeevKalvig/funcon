@@ -1,4 +1,13 @@
-import React, { useState, useRef, useEffect, useContext } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useContext,
+  useMemo,
+  useCallback,
+  useTransition,
+  memo,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Palette,
@@ -27,43 +36,59 @@ import {
   getGuestCartItems,
 } from "./lib/magento";
 
-/* FloatingControls stays unchanged */
-const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
+/* Memoized FloatingControls */
+const FloatingControls = memo(({ onReset, onRandomize, onPrev, onCenter }) => {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
 
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && setOpen(false);
-    const onClick = (e) =>
-      btnRef.current && !btnRef.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
+    const onClick = (e) => {
+      if (btnRef.current && !btnRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onClick);
+
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onClick);
     };
   }, []);
 
-  const items = [
-    {
-      id: "prev",
-      label: "Previous",
-      icon: <ArrowLeft className="h-4 w-4" />,
-      action: onPrev,
-    },
-    {
-      id: "dot",
-      label: "Center View",
-      icon: <Dot className="h-4 w-4" />,
-      action: onCenter,
-    },
-    {
-      id: "reset",
-      label: "Reset",
-      icon: <RefreshCcw className="h-4 w-4" />,
-      action: onReset,
-    },
-  ];
+  const items = useMemo(
+    () => [
+      {
+        id: "prev",
+        label: "Previous",
+        icon: <ArrowLeft className="h-4 w-4" />,
+        action: onPrev,
+      },
+      {
+        id: "dot",
+        label: "Center View",
+        icon: <Dot className="h-4 w-4" />,
+        action: onCenter,
+      },
+      {
+        id: "reset",
+        label: "Reset",
+        icon: <RefreshCcw className="h-4 w-4" />,
+        action: onReset,
+      },
+    ],
+    [onPrev, onCenter, onReset]
+  );
+
+  const handleItemClick = useCallback((action) => {
+    if (action) action();
+    setOpen(false);
+  }, []);
 
   return (
     <div
@@ -81,10 +106,7 @@ const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
             return (
               <button
                 key={it.id}
-                onClick={() => {
-                  it.action && it.action();
-                  setOpen(false);
-                }}
+                onClick={() => handleItemClick(it.action)}
                 aria-label={it.label}
                 className="cursor-pointer absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-200 shadow-lg border border-white/10 bg-white/[0.04] transition-transform duration-300 ease-out hover:brightness-110 focus:outline-none"
                 style={{
@@ -131,14 +153,20 @@ const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
       </div>
     </div>
   );
-};
+});
+
+FloatingControls.displayName = "FloatingControls";
 
 const HomePage = () => {
   const [legs, setLegs] = useState("taper");
   const [lighting, setLighting] = useState("studio");
+  const [basePrice, setBasePrice] = useState(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
   const navigate = useNavigate();
 
-  // 🔧 Pull EVERYTHING you use from context
+  // Pull everything from context
   const {
     material,
     setMaterialAndPrice,
@@ -153,46 +181,100 @@ const HomePage = () => {
   } = useContext(appContext);
 
   const PARENT_SKU = "CUSTOM3DSOFA-PARENT";
-
   const { loading } = useLoader();
 
-  // ✅ Use setMaterialAndPrice so price stays in sync
-  const handleResetAll = () => {
-    setMaterialAndPrice(1); // default to Fabric1 (index 1) — change if you want
-    setLayout("left");
-    setLegs("taper");
-    setShowMeasurements(false);
-    setLighting("studio");
-  };
+  // Memoize addon calculation
+  const addon = useMemo(() => {
+    if (basePrice == null) return 0;
+    return Math.round(Number(displayPrice) - Number(basePrice));
+  }, [basePrice, displayPrice]);
 
-  const handleRandomize = () => {
-    const randIdx = Math.floor(Math.random() * swatches.length);
-    setMaterialAndPrice(randIdx);
+  // Set basePrice once - optimized
+  useEffect(() => {
+    if (basePrice !== null) return;
 
-    const seatOps = ["left", "right"];
-    setLayout(seatOps[Math.floor(Math.random() * seatOps.length)]);
+    if (selectedVariant?.price != null) {
+      setBasePrice(Number(selectedVariant.price));
+      console.log("basePrice set from selectedVariant:", selectedVariant.price);
+    } else if (displayPrice && Number(displayPrice) > 0) {
+      setBasePrice(Number(displayPrice));
+      console.log("basePrice set from displayPrice:", displayPrice);
+    }
+  }, [selectedVariant, displayPrice]);
 
-    const legOps = ["taper", "flat", "sled", "pin"];
-    setLegs(legOps[Math.floor(Math.random() * legOps.length)]);
+  // on set basePrice, also persist
+  useEffect(() => {
+    if (basePrice != null) {
+      try {
+        sessionStorage.setItem("sofa_basePrice", String(basePrice));
+      } catch (e) {}
+    }
+  }, [basePrice]);
 
-    setShowMeasurements(false);
+  // on mount try to read
+  useEffect(() => {
+    if (basePrice == null) {
+      const stored = sessionStorage.getItem("sofa_basePrice");
+      if (stored && !Number.isNaN(Number(stored))) {
+        setBasePrice(Number(stored));
+        console.log("basePrice restored from sessionStorage:", stored);
+      }
+    }
+  }, []);
 
-    const lightOps = ["studio", "day", "night"];
-    setLighting(lightOps[Math.floor(Math.random() * lightOps.length)]);
-  };
+  // Memoized callbacks
+  const handleResetAll = useCallback(() => {
+    startTransition(() => {
+      setMaterialAndPrice(0);
+      setLayout("left");
+      setLegs("taper");
+      setShowMeasurements(false);
+      setLighting("studio");
+    });
+  }, [setMaterialAndPrice, setLayout, setShowMeasurements]);
 
-  const handlePrev = () => {
+  const handleRandomize = useCallback(() => {
+    startTransition(() => {
+      const randIdx = Math.floor(Math.random() * swatches.length);
+      setMaterialAndPrice(randIdx);
+
+      const seatOps = ["left", "right"];
+      setLayout(seatOps[Math.floor(Math.random() * seatOps.length)]);
+
+      const legOps = ["taper", "flat", "sled", "pin"];
+      setLegs(legOps[Math.floor(Math.random() * legOps.length)]);
+
+      setShowMeasurements(false);
+
+      const lightOps = ["studio", "day", "night"];
+      setLighting(lightOps[Math.floor(Math.random() * lightOps.length)]);
+    });
+  }, [swatches.length, setMaterialAndPrice, setLayout, setShowMeasurements]);
+
+  const handlePrev = useCallback(() => {
     const next = (material - 1 + swatches.length) % swatches.length;
     setMaterialAndPrice(next);
-  };
+  }, [material, swatches.length, setMaterialAndPrice]);
 
-  const handleCenter = () =>
+  const handleCenter = useCallback(() => {
     setLighting((l) => (l === "studio" ? "day" : "studio"));
-  async function handleAddToCart() {
-    try {
-      if (!selectedVariant) return alert("Please pick a texture first.");
-      if (!attrId) return alert("Missing attribute id (reload page).");
+  }, []);
 
+  // Debounced add to cart
+  const handleAddToCart = useCallback(async () => {
+    if (isAddingToCart) return;
+
+    try {
+      if (!selectedVariant) {
+        alert("Please pick a texture first.");
+        return;
+      }
+      if (!attrId) {
+        alert("Missing attribute id (reload page).");
+        return;
+      }
+
+      setIsAddingToCart(true);
       const optionValue = String(
         selectedVariant.texture_option_id || selectedVariant.option_id
       );
@@ -212,14 +294,85 @@ const HomePage = () => {
     } catch (e) {
       console.error(e);
       alert(e.message || "Add to cart failed");
+    } finally {
+      setIsAddingToCart(false);
     }
-  }
+  }, [selectedVariant, attrId, isAddingToCart]);
+
+  // Memoize swatch buttons
+  const swatchButtons = useMemo(() => {
+    return swatches.map((c, i) => (
+      <button
+        key={c}
+        onClick={() => setMaterialAndPrice(i)}
+        className={`relative h-7 w-7 rounded-md border border-white/10 transition hover:brightness-110 ${
+          material === i
+            ? "ring-1 ring-blue-400/70 shadow-[0_0_10px_rgba(56,189,248,.25)]"
+            : ""
+        }`}
+        style={{
+          backgroundImage: `url(${c})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+        aria-label={`Texture ${i + 1}`}
+      >
+        <span className="absolute right-0.5 top-0.5 h-1 w-1 rounded-full bg-white/70 mix-blend-screen" />
+      </button>
+    ));
+  }, [swatches, material, setMaterialAndPrice]);
+
+  // Memoize seat options
+  const seatOptions = useMemo(
+    () => [
+      { id: "left", label: "left" },
+      { id: "right", label: "right" },
+    ],
+    []
+  );
+
+  // Memoize leg options
+  const legOptions = useMemo(
+    () => [
+      {
+        id: "taper",
+        icon: <Diamond className="h-3 w-3" />,
+        label: "Taper",
+      },
+      {
+        id: "flat",
+        icon: <Grid2x2 className="h-3 w-3" />,
+        label: "Flat",
+      },
+      {
+        id: "sled",
+        icon: <MoveHorizontal className="h-3 w-3" />,
+        label: "Sled",
+      },
+      {
+        id: "pin",
+        icon: <Circle className="h-3 w-3" />,
+        label: "Pin",
+      },
+    ],
+    []
+  );
+
+  // Memoize lighting options
+  const lightingOptions = useMemo(
+    () => [
+      { id: "studio", icon: <Diamond className="h-3 w-3" /> },
+      { id: "day", icon: <Sun className="h-3 w-3" /> },
+      { id: "night", icon: <Moon className="h-3 w-3" /> },
+    ],
+    []
+  );
 
   return (
     <div
       className={`min-h-screen w-full bg-[#090e18]
       bg-[radial-gradient(80rem_80rem_at_65%_0%,rgba(59,130,246,.18),transparent),radial-gradient(40rem_40rem_at_10%_100%,rgba(251,146,60,.12),transparent)]
-      pt-8 px-4 md:px-3 ${loading ? "loading-block" : ""}`}
+      pt-8 px-4 md:px-3 ${loading || isPending ? "loading-block" : ""}`}
     >
       <div
         className="grid h-[92vh] grid-rows-[1fr_auto] lg:grid-rows-1
@@ -233,19 +386,13 @@ const HomePage = () => {
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="rounded-lg border border-white/10 bg-black/40 px-6 py-4 text-center text-slate-400">
-                  <p className="text-xs">Loading...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-2"></div>
+                  <p className="text-xs">Loading 3D Scene...</p>
                 </div>
               </div>
             ) : (
               <Scene />
             )}
-
-            {/* <FloatingControls
-              onReset={handleResetAll}
-              onRandomize={handleRandomize}
-              onPrev={handlePrev}
-              onCenter={handleCenter}
-            /> */}
           </main>
 
           {/* BOTTOM CONTROLS */}
@@ -257,27 +404,7 @@ const HomePage = () => {
                   <Palette className="h-3 w-3 opacity-80" />
                   <span>MATERIAL</span>
                 </div>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {swatches.map((c, i) => (
-                    <button
-                      key={c}
-                      onClick={() => setMaterialAndPrice(i)}
-                      className={`relative h-7 w-7 rounded-md border border-white/10 transition hover:brightness-110 ${
-                        material === i
-                          ? "ring-1 ring-blue-400/70 shadow-[0_0_10px_rgba(56,189,248,.25)]"
-                          : ""
-                      }`}
-                      style={{
-                        backgroundImage: `url(${c})`,
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
-                      }}
-                      aria-label={`Texture ${i + 1}`}
-                    >
-                      <span className="absolute right-0.5 top-0.5 h-1 w-1 rounded-full bg-white/70 mix-blend-screen" />
-                    </button>
-                  ))}
-                </div>
+                <div className="grid grid-cols-6 gap-1.5">{swatchButtons}</div>
               </section>
 
               {/* SEAT CONFIG */}
@@ -287,10 +414,7 @@ const HomePage = () => {
                   <span>SEAT</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { id: "left", label: "left" },
-                    { id: "right", label: "right" },
-                  ].map((opt) => (
+                  {seatOptions.map((opt) => (
                     <button
                       key={opt.id}
                       onClick={() => setLayout(opt.id)}
@@ -314,28 +438,7 @@ const HomePage = () => {
                   <span>LEGS</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    {
-                      id: "taper",
-                      icon: <Diamond className="h-3 w-3" />,
-                      label: "Taper",
-                    },
-                    {
-                      id: "flat",
-                      icon: <Grid2x2 className="h-3 w-3" />,
-                      label: "Flat",
-                    },
-                    {
-                      id: "sled",
-                      icon: <MoveHorizontal className="h-3 w-3" />,
-                      label: "Sled",
-                    },
-                    {
-                      id: "pin",
-                      icon: <Circle className="h-3 w-3" />,
-                      label: "Pin",
-                    },
-                  ].map((o) => (
+                  {legOptions.map((o) => (
                     <button
                       key={o.id}
                       onClick={() => setLegs(o.id)}
@@ -359,11 +462,7 @@ const HomePage = () => {
                   <span>LIGHT</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: "studio", icon: <Diamond className="h-3 w-3" /> },
-                    { id: "day", icon: <Sun className="h-3 w-3" /> },
-                    { id: "night", icon: <Moon className="h-3 w-3" /> },
-                  ].map((o) => (
+                  {lightingOptions.map((o) => (
                     <button
                       key={o.id}
                       onClick={() => setLighting(o.id)}
@@ -386,16 +485,78 @@ const HomePage = () => {
         <aside className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3 xl:p-4">
           {/* PRICE AND CTA */}
           <div className="mb-5">
-            <p className="text-2xl font-semibold text-slate-100">
-              ₹ {Number(displayPrice).toLocaleString("en-IN")}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">Customizable Sofa</p>
+            {/* PRICE + BREAKDOWN */}
+            <div>
+              <p className="text-2xl font-semibold text-slate-100">
+                ₹ {Number(displayPrice).toLocaleString("en-IN")}
+              </p>
+              <p className="text-sm text-slate-400 mt-1 mb-3">
+                Customizable Sofa
+              </p>
+
+              {/* show breakdown only if we know basePrice */}
+              {basePrice !== null && (
+                <div className="text-xs text-slate-400 space-y-1.5 bg-white/[0.01] rounded-md p-2">
+                  <div className="flex items-center justify-between">
+                    <span>Base price</span>
+                    <span className="font-medium">
+                      ₹ {Number(basePrice).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  {/* addon or discount */}
+                  {addon > 0 ? (
+                    <div className="flex items-center justify-between text-amber-200">
+                      <span className="text-[12px]">
+                        Addon —{" "}
+                        {selectedVariant?.texture_label ||
+                          selectedVariant?.option_label ||
+                          "Selected"}
+                      </span>
+                      <span className="text-[12px]">
+                        + ₹ {Number(addon).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  ) : addon < 0 ? (
+                    <div className="flex items-center justify-between text-green-300">
+                      <span className="text-[12px]">Discount</span>
+                      <span className="text-[12px]">
+                        − ₹ {Math.abs(Number(addon)).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="text-[12px]">No addon</span>
+                      <span className="text-[12px]">—</span>
+                    </div>
+                  )}
+
+                  <div className="mt-2 border-t border-white/5 pt-2 text-[12px] text-slate-300">
+                    <span className="font-medium">Total:</span>
+                    <span className="ml-2 font-semibold">
+                      ₹ {Number(displayPrice).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleAddToCart}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20"
+              disabled={isAddingToCart}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ShoppingCart className="h-4 w-4" />
-              ADD TO CART
+              {isAddingToCart ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-200"></div>
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-4 w-4" />
+                  ADD TO CART
+                </>
+              )}
             </button>
             <button
               onClick={() => navigate("/checkout")}
@@ -451,14 +612,16 @@ const HomePage = () => {
             <div className="flex gap-2">
               <button
                 onClick={handleResetAll}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-xs text-slate-300 hover:bg-white/[0.06]"
+                disabled={isPending}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-xs text-slate-300 hover:bg-white/[0.06] disabled:opacity-50"
               >
                 <RotateCcw className="h-3 w-3" />
                 Reset All
               </button>
               <button
                 onClick={handleRandomize}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-xs text-slate-300 hover:bg-white/[0.06]"
+                disabled={isPending}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-xs text-slate-300 hover:bg-white/[0.06] disabled:opacity-50"
               >
                 <RefreshCcw className="h-3 w-3" />
                 Randomize

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+body {
+  background-color: #090e18;
+  overflow-y: auto; 
+}
+
 .loading-block {
     pointer-events: none;
     opacity: 0.95;

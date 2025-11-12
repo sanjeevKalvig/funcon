@@ -8,7 +8,7 @@ const LABEL_BY_INDEX = (i) => `Fabric${i}`;
 const toKey = (s) => String(s || "").trim().toLowerCase();
 
 function AppContextProvider({ children }) {
-  const [material, setMaterial] = useState(1);
+  const [material, setMaterial] = useState(0);
   const [layout, setLayout] = useState("left");
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [magento, setMagento] = useState(null);
