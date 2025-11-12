@@ -20,6 +20,11 @@ import Scene from "./components/Configurator/components/Scene";
 import styles from "./components/Configurator/components/UI/styleSheet/ToggleSwtich.module.css";
 import { appContext } from "./components/Configurator/contexts/appContext";
 import { useLoader } from "./components/Configurator/hooks/useLoader";
+import {
+  ensureGuestCartId,
+  addConfigurableToGuestCart,
+  getGuestCartItems,
+} from "./lib/magento";
 
 /* FloatingControls stays unchanged */
 const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
@@ -39,13 +44,31 @@ const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
   }, []);
 
   const items = [
-    { id: "prev", label: "Previous", icon: <ArrowLeft className="h-4 w-4" />, action: onPrev },
-    { id: "dot", label: "Center View", icon: <Dot className="h-4 w-4" />, action: onCenter },
-    { id: "reset", label: "Reset", icon: <RefreshCcw className="h-4 w-4" />, action: onReset },
+    {
+      id: "prev",
+      label: "Previous",
+      icon: <ArrowLeft className="h-4 w-4" />,
+      action: onPrev,
+    },
+    {
+      id: "dot",
+      label: "Center View",
+      icon: <Dot className="h-4 w-4" />,
+      action: onCenter,
+    },
+    {
+      id: "reset",
+      label: "Reset",
+      icon: <RefreshCcw className="h-4 w-4" />,
+      action: onReset,
+    },
   ];
 
   return (
-    <div ref={btnRef} className="pointer-events-auto absolute inset-x-0 bottom-6 flex justify-center">
+    <div
+      ref={btnRef}
+      className="pointer-events-auto absolute inset-x-0 bottom-6 flex justify-center"
+    >
       <div className="relative flex items-center">
         <div className="relative">
           {items.map((it, idx) => {
@@ -64,7 +87,9 @@ const FloatingControls = ({ onReset, onRandomize, onPrev, onCenter }) => {
                 aria-label={it.label}
                 className="cursor-pointer absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-200 shadow-lg border border-white/10 bg-white/[0.04] transition-transform duration-300 ease-out hover:brightness-110 focus:outline-none"
                 style={{
-                  transform: `translate(${tx}px, ${ty}px) scale(${open ? 1 : 0.75})`,
+                  transform: `translate(${tx}px, ${ty}px) scale(${
+                    open ? 1 : 0.75
+                  })`,
                   opacity: open ? 1 : 0,
                   pointerEvents: open ? "auto" : "none",
                 }}
@@ -121,7 +146,11 @@ const HomePage = () => {
     showMeasurements,
     setShowMeasurements,
     displayPrice,
+    selectedVariant,
+    attrId,
   } = useContext(appContext);
+
+  const PARENT_SKU = "CUSTOM3DSOFA-PARENT";
 
   const { loading } = useLoader();
 
@@ -155,7 +184,34 @@ const HomePage = () => {
     setMaterialAndPrice(next);
   };
 
-  const handleCenter = () => setLighting((l) => (l === "studio" ? "day" : "studio"));
+  const handleCenter = () =>
+    setLighting((l) => (l === "studio" ? "day" : "studio"));
+  async function handleAddToCart() {
+    try {
+      if (!selectedVariant) return alert("Please pick a texture first.");
+      if (!attrId) return alert("Missing attribute id (reload page).");
+
+      const optionValue = String(
+        selectedVariant.texture_option_id || selectedVariant.option_id
+      );
+      const cartId = await ensureGuestCartId();
+
+      await addConfigurableToGuestCart({
+        cartId,
+        parentSku: PARENT_SKU,
+        attributeId: attrId,
+        optionValue,
+        qty: 1,
+      });
+
+      const items = await getGuestCartItems(cartId);
+      const totalQty = items.reduce((s, it) => s + (it.qty || 0), 0);
+      alert(`Added to cart ✓ (items in cart: ${totalQty})`);
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Add to cart failed");
+    }
+  }
 
   return (
     <div
@@ -205,7 +261,9 @@ const HomePage = () => {
                       key={c}
                       onClick={() => setMaterialAndPrice(i)}
                       className={`relative h-7 w-7 rounded-md border border-white/10 transition hover:brightness-110 ${
-                        material === i ? "ring-1 ring-blue-400/70 shadow-[0_0_10px_rgba(56,189,248,.25)]" : ""
+                        material === i
+                          ? "ring-1 ring-blue-400/70 shadow-[0_0_10px_rgba(56,189,248,.25)]"
+                          : ""
                       }`}
                       style={{
                         backgroundImage: `url(${c})`,
@@ -235,7 +293,9 @@ const HomePage = () => {
                       key={opt.id}
                       onClick={() => setLayout(opt.id)}
                       className={`flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[10px] transition ${
-                        layout === opt.id ? "border-blue-500/50 bg-blue-400/10 text-blue-100" : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
+                        layout === opt.id
+                          ? "border-blue-500/50 bg-blue-400/10 text-blue-100"
+                          : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
                       }`}
                     >
                       <Sofa className="h-3 w-3 opacity-90" />
@@ -253,16 +313,34 @@ const HomePage = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
-                    { id: "taper", icon: <Diamond className="h-3 w-3" />, label: "Taper" },
-                    { id: "flat", icon: <Grid2x2 className="h-3 w-3" />, label: "Flat" },
-                    { id: "sled", icon: <MoveHorizontal className="h-3 w-3" />, label: "Sled" },
-                    { id: "pin", icon: <Circle className="h-3 w-3" />, label: "Pin" },
+                    {
+                      id: "taper",
+                      icon: <Diamond className="h-3 w-3" />,
+                      label: "Taper",
+                    },
+                    {
+                      id: "flat",
+                      icon: <Grid2x2 className="h-3 w-3" />,
+                      label: "Flat",
+                    },
+                    {
+                      id: "sled",
+                      icon: <MoveHorizontal className="h-3 w-3" />,
+                      label: "Sled",
+                    },
+                    {
+                      id: "pin",
+                      icon: <Circle className="h-3 w-3" />,
+                      label: "Pin",
+                    },
                   ].map((o) => (
                     <button
                       key={o.id}
                       onClick={() => setLegs(o.id)}
                       className={`flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[10px] transition ${
-                        legs === o.id ? "border-blue-500/50 bg-blue-400/10 text-blue-100" : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
+                        legs === o.id
+                          ? "border-blue-500/50 bg-blue-400/10 text-blue-100"
+                          : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
                       }`}
                     >
                       {o.icon}
@@ -288,7 +366,9 @@ const HomePage = () => {
                       key={o.id}
                       onClick={() => setLighting(o.id)}
                       className={`flex h-7 items-center justify-center rounded-lg border transition ${
-                        lighting === o.id ? "border-blue-500/50 bg-blue-400/10 text-blue-100" : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
+                        lighting === o.id
+                          ? "border-blue-500/50 bg-blue-400/10 text-blue-100"
+                          : "border-white/10 text-slate-300 hover:bg-white/[0.05]"
                       }`}
                     >
                       {o.icon}
@@ -308,7 +388,10 @@ const HomePage = () => {
               ₹ {Number(displayPrice).toLocaleString("en-IN")}
             </p>
             <p className="text-sm text-slate-400 mt-1">Customizable Sofa</p>
-            <button className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20">
+            <button
+              onClick={handleAddToCart}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20"
+            >
               <ShoppingCart className="h-4 w-4" />
               ADD TO CART
             </button>
@@ -332,7 +415,9 @@ const HomePage = () => {
 
           {/* PRODUCT DETAILS */}
           <div className="mb-5">
-            <h3 className="mb-2 text-sm font-medium text-slate-200">Product Details</h3>
+            <h3 className="mb-2 text-sm font-medium text-slate-200">
+              Product Details
+            </h3>
             <ul className="text-xs text-slate-400 space-y-1.5">
               <li className="flex justify-between">
                 <span>Material:</span>

@@ -5,7 +5,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/variant-price.php': { target: 'http://rocking.magento.com', changeOrigin: true, secure: false },
-    }
-  }
+      '/variant-price.php': {
+        target: 'http://rocking.magento.com',
+        changeOrigin: true,
+        secure: false,
+      },
+      '^/rest/.*': {
+        target: 'http://rocking.magento.com',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 })
