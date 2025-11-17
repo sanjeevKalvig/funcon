@@ -12,13 +12,18 @@ export async function ensureGuestCartId() {
     const txt = await res.text();
     throw new Error("Failed to create guest cart: " + txt);
   }
-  id = await res.json();
+  id = await res.json(); // masked cart id string
   localStorage.setItem(key, id);
   return id;
 }
 
 // add configurable product (already used)
 export async function addConfigurableToGuestCart({ cartId, parentSku, attributeId, optionValue, qty = 1 }) {
+  if (!cartId) throw new Error("Missing cartId");
+  if (!parentSku) throw new Error("Missing parentSku");
+  if (!attributeId) throw new Error("Missing attributeId");
+  if (optionValue === undefined || optionValue === null) throw new Error("Missing optionValue");
+
   const url = `${BASE}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`;
   const payload = {
     cartItem: {
@@ -28,23 +33,28 @@ export async function addConfigurableToGuestCart({ cartId, parentSku, attributeI
       product_option: {
         extension_attributes: {
           configurable_item_options: [
+            // Magento expects option_id = attribute id, option_value = value_index of chosen option
             { option_id: String(attributeId), option_value: String(optionValue) }
           ]
         }
       }
     }
   };
+
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+  // Helpful debug: when request fails, return response body as text
   if (!res.ok) {
     const txt = await res.text();
     throw new Error("Add to cart failed: " + txt);
   }
-  return res.json();
+  return res.json(); // returns cart item object on success
 }
+
 
 // get items in guest cart
 export async function getGuestCartItems(cartId) {

@@ -6,12 +6,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/variant-price.php': {
-        target: 'http://rocking.magento.com',
+        target: 'http://13.203.184.96/',
         changeOrigin: true,
         secure: false,
       },
       '^/rest/.*': {
-        target: 'http://rocking.magento.com',
+        target: 'http://13.203.184.96/',
         changeOrigin: true,
         secure: false,
       },
