@@ -1,5 +1,5 @@
 import { Grid3x3 } from 'lucide-react'
-import styles from '../styleSheet/ToggleSwtich.module.css';
+import styles from '../styleSheet/ToggleSwitch.module.css';
 import { useContext } from 'react';
 import { appContext } from '../../../contexts/appContext'
 
