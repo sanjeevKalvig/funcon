@@ -27,7 +27,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import Scene from "./components/Configurator/components/Scene";
-import styles from "./components/Configurator/components/UI/styleSheet/ToggleSwitch.module.css";
+import styles from "./components/Configurator/components/UI/stylesheet/ToggleSwitch.module.css";
 import { appContext } from "./components/Configurator/contexts/appContext";
 import { useLoader } from "./components/Configurator/hooks/useLoader";
 import {
