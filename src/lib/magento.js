@@ -26,49 +26,74 @@ export async function ensureGuestCartId() {
   let id = localStorage.getItem(key);
   if (id) return id;
 
-  const res = await fetch(joinBase("/rest/V1/guest-carts"), { method: "POST" });
+  const res = await fetch("/api/magento/create-guest", { method: "POST" });
   if (!res.ok) {
     throw new Error("Failed to create guest cart: " + (await res.text()));
   }
-  id = await res.json();
+  id = await res.text(); // magento returns masked id as plain string
   localStorage.setItem(key, id);
   return id;
 }
 
-// 2. ADD CONFIGURABLE PRODUCT
-export async function addConfigurableToGuestCart({ cartId, parentSku, attributeId, optionValue, qty = 1 }) {
-  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
 
-  const payload = {
-    cartItem: {
-      quote_id: cartId,
-      sku: parentSku,
-      qty: Number(qty),
-      product_option: {
-        extension_attributes: {
-          configurable_item_options: [
-            {
-              option_id: Number(attributeId),
-              option_value: Number(optionValue)
-            }
-          ]
+// 2. ADD CONFIGURABLE PRODUCT
+// Environment-aware add-to-cart: uses Vite proxy in dev, serverless bridge in production
+export async function addConfigurableToGuestCart({ cartId, parentSku, attributeId, optionValue, qty = 1 }) {
+  if (!cartId) throw new Error("Missing cartId");
+  if (!parentSku) throw new Error("Missing parentSku");
+  if (!attributeId) throw new Error("Missing attributeId");
+  if (optionValue === undefined || optionValue === null) throw new Error("Missing optionValue");
+
+  const ENV_BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
+  const isLocalDevNoBase = import.meta.env.DEV && !ENV_BASE;
+
+  // 1) Local dev (Vite proxy) -> call Magento REST directly via joinBase()
+  if (isLocalDevNoBase) {
+    const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
+
+    const payload = {
+      cartItem: {
+        quote_id: cartId,
+        sku: parentSku,
+        qty: Number(qty),
+        product_option: {
+          extension_attributes: {
+            configurable_item_options: [
+              { option_id: Number(attributeId), option_value: Number(optionValue) }
+            ]
+          }
         }
       }
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error("Add to cart failed: " + txt);
     }
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error("Add to cart failed: " + (await res.text()));
+    return res.json();
   }
 
-  return res.json();
+  // 2) Production / Vercel -> call serverless bridge (server -> Magento)
+  const bridgeRes = await fetch("/api/magento/add-configurable", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cartId, parentSku, attributeId, optionValue, qty }),
+  });
+
+  if (!bridgeRes.ok) {
+    const txt = await bridgeRes.text().catch(() => "");
+    throw new Error("Add to cart (bridge) failed: " + txt);
+  }
+
+  return bridgeRes.json();
 }
+
 
 // 3. GET ITEMS
 export async function getGuestCartItems(cartId) {
