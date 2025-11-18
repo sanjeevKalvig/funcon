@@ -1,12 +1,23 @@
 // src/lib/magento.js
 
 // VITE_MAGENTO_BASE comes from .env.local (dev) or Vercel env (prod)
-const BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
+const ENV_BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
+
+// Behavior:
+// - During local dev (import.meta.env.DEV === true):
+//    if ENV_BASE is empty -> use relative paths so Vite proxy works (BASE = "")
+//    if ENV_BASE set -> use that (useful if you want local to hit real host)
+// - During production (DEV === false):
+//    if ENV_BASE set -> use it
+//    otherwise -> route through Vercel serverless proxy at /api/magento
+const BASE = import.meta.env.DEV
+  ? (ENV_BASE ? ENV_BASE.replace(/\/+$/, "") : "")          // dev: prefer relative paths (Vite proxy) when ENV_BASE not set
+  : (ENV_BASE ? ENV_BASE.replace(/\/+$/, "") : "/api/magento"); // prod: fallback to /api/magento
 
 // Helper to join base URL + path
 function joinBase(path) {
-  if (!BASE) return path;  // dev (Vite proxy)
-  return BASE.replace(/\/+$/, "") + path;
+  if (!BASE) return path;  // dev (Vite proxy) or explicit empty
+  return BASE.replace(/\/+$/, "") + (path.startsWith("/") ? path : "/" + path);
 }
 
 // 1. CREATE GUEST CART
