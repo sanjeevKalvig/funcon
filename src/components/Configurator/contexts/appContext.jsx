@@ -3,10 +3,12 @@ import { createContext, useEffect, useMemo, useState } from "react";
 export const appContext = createContext();
 
 const PARENT_SKU = "CUSTOM3DSOFA-PARENT";
-const VARIANT_API = "/variant-price.php";
+
+// This is always correct in production (Vercel) and dev fallback
+const VARIANT_API_PATH = "/api/magento/variant-price.php";
+
 const LABEL_BY_INDEX = (i) => `Fabric${i}`;
 const toKey = (s) => String(s || "").trim().toLowerCase();
-const VARIANT_API_PATH = "/variant-price.php"; 
 
 function AppContextProvider({ children }) {
   const [material, setMaterial] = useState(0);
@@ -16,7 +18,7 @@ function AppContextProvider({ children }) {
   const [displayPrice, setDisplayPrice] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [activeTextureLabel, setActiveTextureLabel] = useState(null);
-  const [attrId, setAttrId] = useState(null); // ✅ new
+  const [attrId, setAttrId] = useState(null);
 
   const swatches = [
     "/textures/Fabric0.jpg",
@@ -26,18 +28,39 @@ function AppContextProvider({ children }) {
     "/textures/Fabric4.jpg",
   ];
 
- useEffect(() => {
+useEffect(() => {
   (async () => {
     try {
-      // build URL depending on env:
-      // - local dev: import.meta.env.VITE_MAGENTO_BASE is empty -> relative path (works with Vite proxy)
-      // - production: VITE_MAGENTO_BASE is set -> absolute URL to Magento host
-      const magentoBase = import.meta.env.VITE_MAGENTO_BASE ?? "";
-      const url = magentoBase
-        ? `${magentoBase.replace(/\/+$/, "")}${VARIANT_API_PATH}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`
-        : `${VARIANT_API_PATH}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
+      const ENV_BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
 
-      const res = await fetch(url, { credentials: "omit" }); // guest endpoints don't need cookies
+      // dev path and proxy prefix
+      const devPath = "/variant-price.php"; // Vite proxy expects this
+      const proxyPrefix = "/api/magento";   // Vercel serverless
+
+      // Decide base and path:
+      // - Local DEV and no ENV_BASE -> call devPath directly: "/variant-price.php?...".
+      // - If ENV_BASE set -> call absolute ENV_BASE + devPath (useful for local dev against real host)
+      // - Production (not DEV) and ENV_BASE empty -> call proxyPrefix + "/variant-price.php"
+      // - Production and ENV_BASE set -> call ENV_BASE + "/variant-price.php"
+      let url;
+      if (import.meta.env.DEV) {
+        if (ENV_BASE) {
+          // call absolute magento host directly in dev
+          url = `${ENV_BASE.replace(/\/+$/, "")}${devPath}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
+        } else {
+          // local dev via Vite proxy
+          url = `${devPath}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
+        }
+      } else {
+        if (ENV_BASE) {
+          url = `${ENV_BASE.replace(/\/+$/, "")}${devPath}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
+        } else {
+          // production using serverless proxy
+          url = `${proxyPrefix}${devPath}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
+        }
+      }
+
+      const res = await fetch(url, { credentials: "omit" });
       if (!res.ok) {
         const txt = await res.text();
         throw new Error(`Variant fetch failed (${res.status}): ${txt}`);
@@ -49,7 +72,7 @@ function AppContextProvider({ children }) {
 
       const initialLabel = LABEL_BY_INDEX(material);
       const first =
-        data?.variants?.find(v => toKey(v.texture_label) === toKey(initialLabel)) ||
+        data?.variants?.find((v) => toKey(v.texture_label) === toKey(initialLabel)) ||
         data?.variants?.[0];
 
       if (first) {
@@ -63,6 +86,8 @@ function AppContextProvider({ children }) {
   })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+
+
 
   const variantByLabel = useMemo(() => {
     const map = new Map();
@@ -80,6 +105,7 @@ function AppContextProvider({ children }) {
 
     const label = LABEL_BY_INDEX(safe);
     const v = variantByLabel.get(toKey(label));
+
     if (v) {
       setDisplayPrice(Number(v.price) || 0);
       setSelectedVariant(v);
@@ -101,7 +127,7 @@ function AppContextProvider({ children }) {
         displayPrice,
         selectedVariant,
         activeTextureLabel,
-        attrId, // ✅ exposed to HomePage
+        attrId,
       }}
     >
       {children}
