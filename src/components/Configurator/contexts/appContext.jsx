@@ -6,6 +6,7 @@ const PARENT_SKU = "CUSTOM3DSOFA-PARENT";
 const VARIANT_API = "/variant-price.php";
 const LABEL_BY_INDEX = (i) => `Fabric${i}`;
 const toKey = (s) => String(s || "").trim().toLowerCase();
+const VARIANT_API_PATH = "/variant-price.php"; 
 
 function AppContextProvider({ children }) {
   const [material, setMaterial] = useState(0);
@@ -25,29 +26,43 @@ function AppContextProvider({ children }) {
     "/textures/Fabric4.jpg",
   ];
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${VARIANT_API}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`);
-        const data = await res.json();
-        setMagento(data);
-        setAttrId(data?.configurable_attribute_id ?? null); // ✅ capture attribute id
+ useEffect(() => {
+  (async () => {
+    try {
+      // build URL depending on env:
+      // - local dev: import.meta.env.VITE_MAGENTO_BASE is empty -> relative path (works with Vite proxy)
+      // - production: VITE_MAGENTO_BASE is set -> absolute URL to Magento host
+      const magentoBase = import.meta.env.VITE_MAGENTO_BASE ?? "";
+      const url = magentoBase
+        ? `${magentoBase.replace(/\/+$/, "")}${VARIANT_API_PATH}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`
+        : `${VARIANT_API_PATH}?sku=${encodeURIComponent(PARENT_SKU)}&attr=texture`;
 
-        const initialLabel = LABEL_BY_INDEX(material);
-        const first =
-          data?.variants?.find(v => toKey(v.texture_label) === toKey(initialLabel)) ||
-          data?.variants?.[0];
-
-        if (first) {
-          setDisplayPrice(Number(first.price) || 0);
-          setSelectedVariant(first);
-          setActiveTextureLabel(first.texture_label || null);
-        }
-      } catch (e) {
-        console.error("variant fetch failed:", e);
+      const res = await fetch(url, { credentials: "omit" }); // guest endpoints don't need cookies
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Variant fetch failed (${res.status}): ${txt}`);
       }
-    })();
-  }, []);
+
+      const data = await res.json();
+      setMagento(data);
+      setAttrId(data?.configurable_attribute_id ?? null);
+
+      const initialLabel = LABEL_BY_INDEX(material);
+      const first =
+        data?.variants?.find(v => toKey(v.texture_label) === toKey(initialLabel)) ||
+        data?.variants?.[0];
+
+      if (first) {
+        setDisplayPrice(Number(first.price) || 0);
+        setSelectedVariant(first);
+        setActiveTextureLabel(first.texture_label || null);
+      }
+    } catch (e) {
+      console.error("variant fetch failed:", e);
+    }
+  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   const variantByLabel = useMemo(() => {
     const map = new Map();

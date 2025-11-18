@@ -1,40 +1,45 @@
 // src/lib/magento.js
-const BASE = ""; // relative paths (works when you proxy /rest in dev or deploy under same origin)
 
-// create guest cart (returns masked cart id string)
+// VITE_MAGENTO_BASE comes from .env.local (dev) or Vercel env (prod)
+const BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
+
+// Helper to join base URL + path
+function joinBase(path) {
+  if (!BASE) return path;  // dev (Vite proxy)
+  return BASE.replace(/\/+$/, "") + path;
+}
+
+// 1. CREATE GUEST CART
 export async function ensureGuestCartId() {
   const key = "mg_guest_cart_id";
   let id = localStorage.getItem(key);
   if (id) return id;
 
-  const res = await fetch(`${BASE}/rest/V1/guest-carts`, { method: "POST" });
+  const res = await fetch(joinBase("/rest/V1/guest-carts"), { method: "POST" });
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error("Failed to create guest cart: " + txt);
+    throw new Error("Failed to create guest cart: " + (await res.text()));
   }
-  id = await res.json(); // masked cart id string
+  id = await res.json();
   localStorage.setItem(key, id);
   return id;
 }
 
-// add configurable product (already used)
+// 2. ADD CONFIGURABLE PRODUCT
 export async function addConfigurableToGuestCart({ cartId, parentSku, attributeId, optionValue, qty = 1 }) {
-  if (!cartId) throw new Error("Missing cartId");
-  if (!parentSku) throw new Error("Missing parentSku");
-  if (!attributeId) throw new Error("Missing attributeId");
-  if (optionValue === undefined || optionValue === null) throw new Error("Missing optionValue");
+  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
 
-  const url = `${BASE}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`;
   const payload = {
     cartItem: {
       quote_id: cartId,
       sku: parentSku,
-      qty,
+      qty: Number(qty),
       product_option: {
         extension_attributes: {
           configurable_item_options: [
-            // Magento expects option_id = attribute id, option_value = value_index of chosen option
-            { option_id: String(attributeId), option_value: String(optionValue) }
+            {
+              option_id: Number(attributeId),
+              option_value: Number(optionValue)
+            }
           ]
         }
       }
@@ -47,30 +52,27 @@ export async function addConfigurableToGuestCart({ cartId, parentSku, attributeI
     body: JSON.stringify(payload),
   });
 
-  // Helpful debug: when request fails, return response body as text
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error("Add to cart failed: " + txt);
+    throw new Error("Add to cart failed: " + (await res.text()));
   }
-  return res.json(); // returns cart item object on success
+
+  return res.json();
 }
 
-
-// get items in guest cart
+// 3. GET ITEMS
 export async function getGuestCartItems(cartId) {
-  const url = `${BASE}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`;
+  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
   const res = await fetch(url);
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error("Failed to fetch cart items: " + txt);
+    throw new Error("Failed to fetch cart items: " + (await res.text()));
   }
-  return res.json(); // array of cart item objects
+  return res.json();
 }
 
-// update cart item quantity
+// 4. UPDATE ITEM
 export async function updateGuestCartItem(cartId, itemId, qty) {
-  // Magento uses PUT /rest/V1/guest-carts/:cartId/items/:itemId
-  const url = `${BASE}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`;
+  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`);
+
   const payload = {
     cartItem: {
       item_id: Number(itemId),
@@ -78,26 +80,28 @@ export async function updateGuestCartItem(cartId, itemId, qty) {
       quote_id: cartId
     }
   };
+
   const res = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error("Failed to update cart item: " + txt);
+    throw new Error("Failed to update cart item: " + (await res.text()));
   }
+
   return res.json();
 }
 
-// remove cart item
+// 5. REMOVE ITEM
 export async function removeGuestCartItem(cartId, itemId) {
-  const url = `${BASE}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`;
+  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`);
   const res = await fetch(url, { method: "DELETE" });
+
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error("Failed to remove cart item: " + txt);
+    throw new Error("Failed to remove cart item: " + (await res.text()));
   }
-  // API returns true on success
+
   return res.json();
 }
