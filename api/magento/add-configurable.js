@@ -52,6 +52,12 @@ export default async function handler(req, res) {
     // Build Magento URL
     const target = `${MAGENTO_HOST.replace(/\/$/, "")}/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`;
 
+    const cleanCartId = String(cartId || "").replace(/^"+|"+$/g, "");
+    const cleanAttrId = Number(attributeId);
+    const cleanOptionValue = Number(optionValue);
+    const cleanQty = Number(qty);
+
+
     // Build Magento payload (expected by Magento)
     const magentoPayload = {
       cartItem: {

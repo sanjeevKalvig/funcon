@@ -21,24 +21,25 @@ function joinBase(path) {
   return BASE.replace(/\/+$/, "") + (path.startsWith("/") ? path : "/" + path);
 }
 
-// 1. CREATE GUEST CART
+// ensureGuestCartId
 export async function ensureGuestCartId() {
   const key = "mg_guest_cart_id";
   let id = localStorage.getItem(key);
   if (id) return id;
 
-  if (isLocalDevNoBase) {
-    // local dev -> call Magento REST directly (via vite proxy)
-    const res = await fetch(`/rest/V1/guest-carts`, { method: "POST" });
-    if (!res.ok) throw new Error(await res.text());
-    id = await res.json();
-  } else {
-    // production -> call your serverless bridge
-    const res = await fetch(`/api/magento/create-guest`, { method: "POST" });
-    if (!res.ok) throw new Error(await res.text());
-    id = await res.json(); // should return the masked cart id string
+  // production -> call serverless create-guest bridge
+  if (!isLocalDevNoBase) {
+    const res = await fetch("/api/magento/create-guest", { method: "POST" });
+    if (!res.ok) throw new Error("Failed to create guest cart: " + (await res.text()));
+    id = (await res.json())?.replace(/^"+|"+$/g, ""); // strip any quotes
+    localStorage.setItem(key, id);
+    return id;
   }
 
+  // local dev -> call Magento REST (via vite proxy)
+  const res = await fetch(joinBase("/rest/V1/guest-carts"), { method: "POST" });
+  if (!res.ok) throw new Error("Failed to create guest cart: " + (await res.text()));
+  id = await res.json();
   localStorage.setItem(key, id);
   return id;
 }
@@ -131,20 +132,24 @@ export async function addConfigurableToGuestCart({
 
 
 // 3. GET ITEMS
+// getGuestCartItems
 export async function getGuestCartItems(cartId) {
   if (!cartId) throw new Error("Missing cartId");
-  if (isLocalDevNoBase) {
-    const res = await fetch(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  } else {
-    // production -> call your bridge endpoint
-    const res = await fetch(`/api/magento/cart-items?cartId=${encodeURIComponent(cartId)}`);
-    if (!res.ok) throw new Error(await res.text());
+  const clean = String(cartId).replace(/^"+|"+$/g, "");
+
+  if (!isLocalDevNoBase) {
+    // call serverless get-items endpoint
+    const res = await fetch(`/api/magento/get-items?cartId=${encodeURIComponent(clean)}`);
+    if (!res.ok) throw new Error("Failed to fetch cart items: " + (await res.text()));
     return res.json();
   }
-}
 
+  // local dev -> direct Magento REST
+  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(clean)}/items`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch cart items: " + (await res.text()));
+  return res.json();
+}
 // 4. UPDATE ITEM
 export async function updateGuestCartItem(cartId, itemId, qty) {
   const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`);
