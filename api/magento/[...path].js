@@ -10,42 +10,54 @@ export default async function handler(req, res) {
     }
 
     const prefix = "/api/magento";
-    const fwdPath = req.url.startsWith(prefix)
-      ? req.url.slice(prefix.length)
-      : req.url;
-
+    const fwdPath = req.url.startsWith(prefix) ? req.url.slice(prefix.length) : req.url;
     const target = MAGENTO_HOST.replace(/\/$/, "") + fwdPath;
 
     // --- READ BODY (for POST/PUT/PATCH/DELETE) ---
     let body = null;
     if (req.method !== "GET" && req.method !== "HEAD") {
-      // Vercel provides body as raw buffer in req
       body = await new Promise((resolve) => {
-        let data = [];
-        req.on("data", (chunk) => data.push(chunk));
-        req.on("end", () => resolve(Buffer.concat(data)));
+        const chunks = [];
+        req.on("data", (c) => chunks.push(c));
+        req.on("end", () => resolve(Buffer.concat(chunks)));
+        // defensive: resolve empty buffer if no data
+        req.on("error", () => resolve(Buffer.alloc(0)));
       });
     }
 
-    // --- CLEAN HEADERS BEFORE FORWARD ---
+    // --- BUILD FORWARD HEADERS ---
     const forwardHeaders = { ...req.headers };
-    delete forwardHeaders.host;
-    delete forwardHeaders["content-length"];
-    delete forwardHeaders["x-vercel-proxy-signature"];
-    delete forwardHeaders["x-forwarded-for"];
-    delete forwardHeaders["x-forwarded-host"];
-    delete forwardHeaders["x-forwarded-port"];
-    delete forwardHeaders["x-forwarded-proto"];
 
+    // Remove hop-by-hop & Vercel internal headers that shouldn't be forwarded
+    [
+      "content-length",
+      "x-vercel-proxy-signature",
+      "x-forwarded-for",
+      "x-forwarded-host",
+      "x-forwarded-port",
+      "x-forwarded-proto",
+      "connection",
+      "upgrade",
+    ].forEach((h) => delete forwardHeaders[h]);
+
+    // Ensure Host header matches the MAGENTO_HOST's host (important for virtualhosts/base-url)
+    try {
+      const magentoHostOnly = new URL(MAGENTO_HOST).host; // host:port if any
+      forwardHeaders["host"] = magentoHostOnly;
+    } catch (e) {
+      // if URL parsing fails, do nothing (leave existing host)
+    }
+
+    // --- FORWARD REQUEST TO MAGENTO ---
     const upstream = await fetch(target, {
       method: req.method,
       headers: forwardHeaders,
-      body,
+      body: body && body.length ? body : undefined,
     });
 
-    // Copy upstream headers (safely)
+    // Mirror selected upstream headers back to client (avoid hop-by-hop)
     upstream.headers.forEach((value, key) => {
-      if (!["connection", "transfer-encoding"].includes(key.toLowerCase())) {
+      if (!["connection", "transfer-encoding", "content-encoding"].includes(key.toLowerCase())) {
         res.setHeader(key, value);
       }
     });
