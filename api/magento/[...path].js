@@ -2,6 +2,7 @@
 // Vercel Serverless Proxy → Magento HTTP Host
 
 export default async function handler(req, res) {
+  console.log('[proxy rest] invoked', { method: req.method, url: req.url });
   try {
     const MAGENTO_HOST = process.env.MAGENTO_HOST;
     if (!MAGENTO_HOST) {
