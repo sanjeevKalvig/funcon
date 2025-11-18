@@ -129,8 +129,6 @@ export async function addConfigurableToGuestCart({
   return bridgeRes.json();
 }
 
-
-
 // 3. GET ITEMS
 // getGuestCartItems
 export async function getGuestCartItems(cartId) {
@@ -152,37 +150,59 @@ export async function getGuestCartItems(cartId) {
 }
 // 4. UPDATE ITEM
 export async function updateGuestCartItem(cartId, itemId, qty) {
-  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`);
+  if (!cartId) throw new Error("Missing cartId");
+  if (!itemId) throw new Error("Missing itemId");
+  if (qty === undefined || qty === null) throw new Error("Missing qty");
 
-  const payload = {
-    cartItem: {
-      item_id: Number(itemId),
-      qty: Number(qty),
-      quote_id: cartId
-    }
-  };
+  const cleanCartId = String(cartId).replace(/^"+|"+$/g, "");
+  const cleanItemId = Number(itemId);
+  const cleanQty = Number(qty);
 
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to update cart item: " + (await res.text()));
+  // local dev -> direct Magento REST
+  if (isLocalDevNoBase) {
+    const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cleanCartId)}/items/${encodeURIComponent(cleanItemId)}`);
+    const payload = { cartItem: { item_id: cleanItemId, qty: cleanQty, quote_id: cleanCartId } };
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to update cart item: " + (await res.text().catch(() => "")));
+    return res.json();
   }
 
-  return res.json();
+  // production -> call serverless update endpoint
+  const bridgeRes = await fetch("/api/magento/update-item", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cartId: cleanCartId, itemId: cleanItemId, qty: cleanQty }),
+  });
+
+  if (!bridgeRes.ok) throw new Error("Failed to update cart item (bridge): " + (await bridgeRes.text().catch(() => "")));
+  return bridgeRes.json();
 }
 
 // 5. REMOVE ITEM
 export async function removeGuestCartItem(cartId, itemId) {
-  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`);
-  const res = await fetch(url, { method: "DELETE" });
+  if (!cartId) throw new Error("Missing cartId");
+  if (!itemId) throw new Error("Missing itemId");
 
-  if (!res.ok) {
-    throw new Error("Failed to remove cart item: " + (await res.text()));
+  const cleanCartId = String(cartId).replace(/^"+|"+$/g, "");
+  const cleanItemId = Number(itemId);
+
+  if (isLocalDevNoBase) {
+    const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cleanCartId)}/items/${encodeURIComponent(cleanItemId)}`);
+    const res = await fetch(url, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to remove cart item: " + (await res.text().catch(() => "")));
+    return res.json(); // Magento returns true on success
   }
 
-  return res.json();
+  const bridgeRes = await fetch("/api/magento/remove-item", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cartId: cleanCartId, itemId: cleanItemId }),
+  });
+
+  if (!bridgeRes.ok) throw new Error("Failed to remove cart item (bridge): " + (await bridgeRes.text().catch(() => "")));
+  return bridgeRes.json();
 }
