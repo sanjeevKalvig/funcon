@@ -1,5 +1,5 @@
-// api/magento/rest/[...rest].js
-// Proxy for /api/magento/rest/* -> forwards to MAGENTO_HOST/rest/*
+// api/magento/[...path].js
+// Vercel Serverless Proxy → Magento HTTP Host
 
 export default async function handler(req, res) {
   try {
@@ -9,24 +9,26 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Remove "/api/magento" prefix and ensure we forward the /rest/... portion
     const prefix = "/api/magento";
     const fwdPath = req.url.startsWith(prefix) ? req.url.slice(prefix.length) : req.url;
     const target = MAGENTO_HOST.replace(/\/$/, "") + fwdPath;
 
-    // Read body for non-GET
+    // --- READ BODY (for POST/PUT/PATCH/DELETE) ---
     let body = null;
     if (req.method !== "GET" && req.method !== "HEAD") {
       body = await new Promise((resolve) => {
         const chunks = [];
         req.on("data", (c) => chunks.push(c));
         req.on("end", () => resolve(Buffer.concat(chunks)));
+        // defensive: resolve empty buffer if no data
         req.on("error", () => resolve(Buffer.alloc(0)));
       });
     }
 
-    // Forward headers, set Host to Magento host
+    // --- BUILD FORWARD HEADERS ---
     const forwardHeaders = { ...req.headers };
+
+    // Remove hop-by-hop & Vercel internal headers that shouldn't be forwarded
     [
       "content-length",
       "x-vercel-proxy-signature",
@@ -36,18 +38,24 @@ export default async function handler(req, res) {
       "x-forwarded-proto",
       "connection",
       "upgrade",
-    ].forEach(h => delete forwardHeaders[h]);
+    ].forEach((h) => delete forwardHeaders[h]);
 
+    // Ensure Host header matches the MAGENTO_HOST's host (important for virtualhosts/base-url)
     try {
-      forwardHeaders["host"] = new URL(MAGENTO_HOST).host;
-    } catch (e) { /* ignore */ }
+      const magentoHostOnly = new URL(MAGENTO_HOST).host; // host:port if any
+      forwardHeaders["host"] = magentoHostOnly;
+    } catch (e) {
+      // if URL parsing fails, do nothing (leave existing host)
+    }
 
+    // --- FORWARD REQUEST TO MAGENTO ---
     const upstream = await fetch(target, {
       method: req.method,
       headers: forwardHeaders,
       body: body && body.length ? body : undefined,
     });
 
+    // Mirror selected upstream headers back to client (avoid hop-by-hop)
     upstream.headers.forEach((value, key) => {
       if (!["connection", "transfer-encoding", "content-encoding"].includes(key.toLowerCase())) {
         res.setHeader(key, value);
@@ -55,9 +63,11 @@ export default async function handler(req, res) {
     });
 
     const arrayBuffer = await upstream.arrayBuffer();
-    res.status(upstream.status).send(Buffer.from(arrayBuffer));
-  } catch (err) {
-    console.error("Proxy Error:", err);
-    res.status(502).json({ error: "Proxy failed", detail: String(err) });
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.status(upstream.status).send(buffer);
+  } catch (error) {
+    console.error("Proxy Error:", error);
+    res.status(502).json({ error: "Proxy failed", detail: String(error) });
   }
 }
