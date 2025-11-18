@@ -2,6 +2,7 @@
 
 // VITE_MAGENTO_BASE comes from .env.local (dev) or Vercel env (prod)
 const ENV_BASE = import.meta.env.VITE_MAGENTO_BASE ?? "";
+const isLocalDevNoBase = import.meta.env.DEV && !ENV_BASE;
 
 // Behavior:
 // - During local dev (import.meta.env.DEV === true):
@@ -24,16 +25,20 @@ function joinBase(path) {
 export async function ensureGuestCartId() {
   const key = "mg_guest_cart_id";
   let id = localStorage.getItem(key);
-  if (id) return id.replace(/^"+|"+$/g, ""); // remove stray wrapping quotes
+  if (id) return id;
 
-  const res = await fetch(joinBase("/rest/V1/guest-carts"), { method: "POST" });
-  if (!res.ok) {
-    throw new Error("Failed to create guest cart: " + (await res.text()));
+  if (isLocalDevNoBase) {
+    // local dev -> call Magento REST directly (via vite proxy)
+    const res = await fetch(`/rest/V1/guest-carts`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    id = await res.json();
+  } else {
+    // production -> call your serverless bridge
+    const res = await fetch(`/api/magento/create-guest`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    id = await res.json(); // should return the masked cart id string
   }
 
-  // Magento returns a JSON string like: "MASKED_ID"
-  const data = await res.json(); // use res.json() -> returns JS string
-  id = typeof data === "string" ? data.replace(/^"+|"+$/g, "") : String(data);
   localStorage.setItem(key, id);
   return id;
 }
@@ -127,12 +132,17 @@ export async function addConfigurableToGuestCart({
 
 // 3. GET ITEMS
 export async function getGuestCartItems(cartId) {
-  const url = joinBase(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error("Failed to fetch cart items: " + (await res.text()));
+  if (!cartId) throw new Error("Missing cartId");
+  if (isLocalDevNoBase) {
+    const res = await fetch(`/rest/V1/guest-carts/${encodeURIComponent(cartId)}/items`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  } else {
+    // production -> call your bridge endpoint
+    const res = await fetch(`/api/magento/cart-items?cartId=${encodeURIComponent(cartId)}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
   }
-  return res.json();
 }
 
 // 4. UPDATE ITEM
